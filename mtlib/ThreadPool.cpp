@@ -6,7 +6,7 @@ namespace MtLib {
 
    ThreadPool *ThreadPool::single_instance = nullptr;
 
-   void ThreadPool::init(int max_num_threads = -1) {
+   void ThreadPool::init(int max_num_threads) {
       if (ThreadPool::single_instance == nullptr) 
          ThreadPool::single_instance = new ThreadPool(max_num_threads);
    }
@@ -39,7 +39,7 @@ namespace MtLib {
          t.join();
    }
 
-   void ThreadPool::run(Task &&tsk) {
+   /*void ThreadPool::run(Task &&tsk) {
       // insert job to the queue within the lock scope
       {
          std::lock_guard<std::mutex> lck(tp_mutex);
@@ -48,9 +48,35 @@ namespace MtLib {
       // notify one waiting thread outside the lock scope
       tp_cv.notify_one();
    }
+	
+	template<class F, class... Args>
+	auto ThreadPool::run(F&& f, Args&&... args)
+		-> std::future<typename std::result_of<F(Args...)>::type>
+	{
+		using return_type = typename std::result_of<F(Args...)>::type;
+
+		auto task = std::make_shared< std::packaged_task<return_type()> >(
+			std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+			);
+
+		std::future<return_type> res = task->get_future();
+		{
+			std::unique_lock<std::mutex> lock(queue_mutex);
+
+			// don't allow enqueueing after stopping the pool
+			if (stop)
+				throw std::runtime_error("enqueue on stopped ThreadPool");
+
+			tasks.emplace([task]() { (*task)(); });
+		}
+		condition.notify_one();
+		return res;
+	}
+	*/
+
 
    void ThreadPool::thread_running_loop() {
-      Task task;
+     /* Task task;
       while (true) {
          // get the next job in queue
          {
@@ -68,7 +94,7 @@ namespace MtLib {
          }
          // run the job outside the lock scope
          task.run();
-      }
+      }*/
    }
 }
 
