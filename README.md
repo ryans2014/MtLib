@@ -7,11 +7,22 @@ MtLib is a C++ library that aims to offer thread reuse as well as a convenient A
 ## Requirement
 This library depend on C++14 standard features. No external libraries are used.
 
-## Usage
 
-There are two groups of features provided by 
+## Usage
+There are two groups of features provided by this library:
+* Run a function via slave threads 
+* Delete a object via slave threads
 
 ## How does it work
+There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRef method are called (either from master thread or from slave threads), the task will be wrapped to a lambda function can pushed to the task queue. Then, an idle slave thread will be notify to start processing the task (via conditional variable).
+
+At the initialization of the thread pool, all the slave thread are created. Every thread is binded to a infinite loop. In side the loop, the thread processes tasks from the task queue. If the task queue is empty, it will simply release the thread queue lock and wait for signals from a conditional variable.
+
+There is also a thread-safe counter that counts the number of pending tasks. It is decremented after a task is finished. If the Wait method is called on the master thread, the master thread will wait for signals from a conditional variable. This conditional variable get notified when the last task get processed.
+
+The TheadPool::Delete method is based on the TheadPool::RunRef method. When a object reference is passed to the Delete method, the ownership of the object will be passed to a lambda function via a capture clause. The function object is then pushed to the task queue by TheadPool::RunRef method. 
+
+The TheadPool::Delete method can also take a pointer argument and push the delete pointer function to the task queue.
 
 ## API Reference
 ```CPP
@@ -65,7 +76,8 @@ void ThreadPool::RunRref(std::function<void()>&& f);
 ```C++
 void ThreadPool::Wait();
 ```
-* Block until all pending tasks are cleared.
+* Block until all pending tasks are cleared. This includes both tasks submitted by master thread, and by tasks submitted by slave thread themselves.
+* Calling the Wait method from a slave thread is undefined behavior.
 
 
 ```C++
