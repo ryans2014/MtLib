@@ -19,6 +19,9 @@ This library depend on C++14 standard features. No external libraries are used.
 There are two groups of features provided by this library:
 * Run a function from by the thead pool
 ```C++
+#include <iostream>
+#include <chrono>
+#include "ThreadPool.h"
 int SimpleFunction(int milliseconds_to_wait) {
    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds_to_wait));
    return milliseconds_to_wait;
@@ -48,6 +51,8 @@ void TestThreadPoolRun() {
 
 * Delete a object via slave threads
 ```C++
+#include <iostream>
+#include "ThreadPool.h"
 // case 1 - delete const object 
 const MovableType const_obj(1);
 tp->Delete(const_obj); // compiler error, Delete does not take const & type
@@ -80,13 +85,13 @@ tp->Delete(non_obj); // compiler error, object should be movable
 ```
 
 ## How does it work
-There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRef method are called (either from master thread or from slave threads), the task will be wrapped to a lambda function can pushed to the task queue. Then, an idle slave thread will be notify to start processing the task (via conditional variable).
+There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRref method are called (either from master thread or from slave threads), the task will be wrapped to a lambda function can pushed to the task queue. Then, an idle slave thread will be notify to start processing the task (via conditional variable).
 
 At the initialization of the thread pool, all the slave thread are created. Every thread is binded to a infinite loop. In side the loop, the thread processes tasks from the task queue. If the task queue is empty, it will simply release the thread queue lock and wait for signals from a conditional variable.
 
 There is also a thread-safe counter that counts the number of pending tasks. It is decremented after a task is finished. If the Wait method is called on the master thread, the master thread will wait for signals from a conditional variable. This conditional variable get notified when the last task get processed.
 
-The TheadPool::Delete method is based on the TheadPool::RunRef method. When a object reference is passed to the Delete method, the ownership of the object will be passed to a lambda function via a capture clause. The function object is then pushed to the task queue by TheadPool::RunRef method. 
+The TheadPool::Delete method is based on the TheadPool::RunRref method. When a object reference is passed to the Delete method, the ownership of the object will be passed to a lambda function via a capture clause. The function object is then pushed to the task queue by TheadPool::RunRref method. 
 
 The TheadPool::Delete method can also take a pointer argument and push the delete pointer function to the task queue.
 
@@ -177,4 +182,4 @@ void ThreadPool::Delete(T* t);
 ## Limitations
 
 * TheadPool::RunAndReturn and TheadPool::Run method passes the function object and argument list object by copy. If a function takes reference as input and you rely on the function to modify the referenced data, then this function should not be invoked by either TheadPool::RunAndReturn or TheadPool::Run. To fix that, you need to modify your function to passing by pointer value. This limitation is introduced because the lambda function capture clause is used in combine with a generic template parameter (see file FunctionBinding.h). There are articles that describes how to overcome this issue, but I did not have the time to understand and implement it yet. Here is one article (https://vittorioromeo.info/index/blog/capturing_perfectly_forwarded_objects_in_lambdas.html).
-* TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays does not have a well defined destructor. Improper deletion of an array may leak to memory leak or even crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRef.
+* TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays does not have a well defined destructor. Improper deletion of an array may leak to memory leak or even crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRref.
