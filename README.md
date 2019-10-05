@@ -1,18 +1,18 @@
 # MtLib: a C++ Thread Pool Library
 MtLib is a C++ library that aims to offer thread reuse as well as a convenient API multithreading programming. The key feature of this library includes:
 * **Thread Reusing:** Reusing of thread avoids thread creation/deletion time. It can reduce the multithreading overhead. This is especially helpful if you are trying to multithread a short/fast function where the thread creation time can be comparable to the function execution time.
-* **Convenient Thread API:** The typical way of using std::thread include create thread and bind it with function, create future/promise pair and pass to the function, store the thread object for joining at a later time, check the function return from the future object. Now, with MtLib API, you just call the Thread::RunAndReturn method, give the function, the argument list, and where to write the return. When you are ready to see the result, just call Thread::Wait method to wait to wait for the completion of all sutmitted tasks. 
+* **Convenient Thread API:** The typical way of using std::thread include create thread and bind it with function, create future/promise pair and pass to the function, store the thread object for joining at a later time, check the function return from the future object. Now, with MtLib API, you just call the Thread::RunAndReturn method, give the function, the argument list, and where to write the return. When you are ready to see the result, just call Thread::Wait method to wait for the completion of all submitted tasks. 
 ```C++
 ThreadPool::Fetch->RunAndReturn(function_to_run, return_pointer, function_argument, ...);
 ThreadPool::Fetch->Wait();
 ```
-* **Garbage Collection by Slave Thread:** Sometimes, calling the destructor on the master thread is just a wait of time. No further operation depend on the outcome of the destructor. Why not letting the slave threads to do that? This MtLib provides a solution. By calling TheadPool::Delete method, you can pass ownership of a object (move semantics) to a lambda function that takes care of the object destruction. The lambda function is then added to the task queue waiting to be processed. 
+* **Garbage Collection by Slave Thread:** Sometimes, calling the destructor on the master thread is just a wait of time. No further operation depends on the outcome of the destructor. Why not letting the slave threads to do that? This MtLib provides a solution. By calling TheadPool::Delete method, you can pass ownership of an object (move semantics) to a lambda function that takes care of the object destruction. The lambda function is then added to the task queue waiting to be processed. 
 ```C++
 ThreadPool::Fetch->Delete(object_to_be_deleted);
 ```
 
 ## Requirement
-This library depend on C++14 standard features. No external libraries are used.
+This library depends on C++14 standard features. No external libraries are used.
 
 
 ## Usage
@@ -96,13 +96,13 @@ tp->Delete(non_obj); // compiler error, object should be movable
 ```
 
 ## How does it work
-There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRref method are called (either from master thread or from slave threads), the task will be wrapped to a lambda function can pushed to the task queue. Then, an idle slave thread will be notify to start processing the task (via conditional variable).
+There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRref methods are called (either from master thread or from slave threads), the task will be wrapped to a lambda function and pushed to the task queue. Then, an idled slave thread will be notify to start processing the task (via conditional variable).
 
-At the initialization of the thread pool, all the slave thread are created. Every thread is binded to a infinite loop. In side the loop, the thread processes tasks from the task queue. If the task queue is empty, it will simply release the thread queue lock and wait for signals from a conditional variable.
+At the initialization of the thread pool, all the slave thread are created. Every thread is binded to an infinite loop. Inside the loop, the thread processes tasks from the task queue. If the task queue is empty, it will simply release the thread queue lock and wait for signals from a conditional variable.
 
-There is also a thread-safe counter that counts the number of pending tasks. It is decremented after a task is finished. If the Wait method is called on the master thread, the master thread will wait for signals from a conditional variable. This conditional variable get notified when the last task get processed.
+There is also a thread-safe counter that counts the number of pending tasks. It is decremented after a task is finished. If the Wait method is called on the master thread, the master thread will wait for signals from a conditional variable. This conditional variable gets notified when the last task gets processed.
 
-The TheadPool::Delete method is based on the TheadPool::RunRref method. When a object reference is passed to the Delete method, the ownership of the object will be passed to a lambda function via a capture clause. The function object is then pushed to the task queue by TheadPool::RunRref method. 
+The TheadPool::Delete method is based on the TheadPool::RunRref method. When an object reference is passed to the Delete method, the ownership of the object will be passed to a lambda function via a capture clause. The function object is then pushed to the task queue by TheadPool::RunRref method. 
 
 The TheadPool::Delete method can also take a pointer argument and push the delete pointer function to the task queue.
 
@@ -137,7 +137,7 @@ void ThreadPool::Run(F&& f, Args&&... args);
   
 * Function return and exception are neglected.
 
-* Note: Both function f and Argument list are passed by value (or pointer value). Passing a reference to the argument list will lead to a copy of the objet. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by reference. See more details in the limitation section.
+* Note: Both function f and Argument list are passed by value (or pointer value). Passing a reference to the argument list will lead to a copy of the object. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by reference. See more details in the limitation section.
 
 
 ```C++
@@ -152,7 +152,7 @@ void ThreadPool::RunAndReturn(F&& f, R&& r, Args&&... args);
 ```C++
 void ThreadPool::RunRref(std::function<void()>&& f);
 ```
-* This function is a simplified version of ThreadPool::Run. It envokes a no-argument, no-return function on a pooled thread. One special feature of this method is that function object f is passed with moving semantics. This feature is especially useful when you want to pass ownership of a object to a lambda function and let the destructor of the lambda function object take care of the object destruction from a different thread (see ThreadPool::Delete implementation for more details).
+* This function is a simplified version of ThreadPool::Run. It envokes a no-argument, no-return function on a pooled thread. One special feature of this method is that function object f is passed with moving semantics. This feature is especially useful when you want to pass ownership of an object to a lambda function and let the destructor of the lambda function object take care of the object destruction from a different thread (see ThreadPool::Delete implementation for more details).
 
 
 ```C++
@@ -169,9 +169,9 @@ void ThreadPool::Delete(T&& t) {
    ...
 }
 ```
-* Destroy a data structure by pooled thread. This template function takes a non-const reference to the object that needs to be deleted. Both R-reference and L-reference are OK, but the object need to be movable. Under the hood, the object will be moved to a lambda function object and the function object destructor will be added to the task queue, waiting to be processed.
+* Destroy a data structure by pooled thread. This template function takes a non-const reference to the object that needs to be deleted. Both R-reference and L-reference are OK, but the object needs to be movable. Under the hood, the object will be moved to a lambda function object and the function object destructor will be added to the task queue, waiting to be processed.
 
-* This function can save master thread time by delegating the destructor task to slave threads. This is only the case is move constructor/assignment is properly defined. 
+* This function can save master thread time by delegating the destructor task to slave threads. This is only the case if move constructor/assignment is properly defined. 
 
 * Do not pass a smart pointer object to this function. Use the next function instead.
 
@@ -180,7 +180,7 @@ void ThreadPool::Delete(T&& t) {
 template<typename T>
 void ThreadPool::Delete(T* t);
 ```
-* Destroy a data structure by pooled thread. This template takes a pointer, call delete on the pooled thread. To delete a object owned by a std::unique_ptr<T>, there are two ways:
+* Destroy a data structure by pooled thread. This template takes a pointer, call delete on the pooled thread. To delete an object owned by a std::unique_ptr<T>, there are two ways:
   
   * call ThreadPool::Delete from T's destructor and let the unique pointer go out of scope as normal
   
@@ -192,6 +192,6 @@ void ThreadPool::Delete(T* t);
 
 ## Limitations
 
-* TheadPool::RunAndReturn and TheadPool::Run method passes the function object and argument list object by copy. If a function takes reference as input and you rely on the function to modify the referenced data, then this function should not be invoked by either TheadPool::RunAndReturn or TheadPool::Run. To fix that, you need to modify your function to passing by pointer value. This limitation is introduced because the lambda function capture clause is used in combine with a generic template parameter (see file FunctionBinding.h). There are articles that describes how to overcome this issue, but I did not have the time to understand and implement it yet. Here is one article https://vittorioromeo.info/index/blog/capturing_perfectly_forwarded_objects_in_lambdas.html.
-* TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays does not have a well defined destructor. Improper deletion of an array may leak to memory leak or even crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRref.
+* TheadPool::RunAndReturn and TheadPool::Run method passes the function object and argument list object by copy. If a function takes references as input and you rely on the function to modify the referenced data, then this function should not be invoked by either TheadPool::RunAndReturn or TheadPool::Run. To fix that, you need to modify your function to passing by pointer value. This limitation is introduced because the lambda function capture clause is used in combination with a generic template parameter (see file FunctionBinding.h). There are articles that describes how to overcome this issue, but I did not have the time to understand and implement it yet. Here is one article https://vittorioromeo.info/index/blog/capturing_perfectly_forwarded_objects_in_lambdas.html.
+* TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays do not have a well defined destructor. Improper deletion of an array may lead to memory leak or even a crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRref.
 * Exceptions raised by the client function is currently not catched/handled. This part is not well tested yet.
