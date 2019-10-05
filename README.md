@@ -114,7 +114,7 @@ void ThreadPool::Run(F&& f, Args&&... args);
   
 * Function return and exception are neglected.
 
-* Note: Both function f and Argument list are passed either by value (or pointer value) or by r-reference. Passing a l-value/l-reference to the argument list will lead to a copy of the objet. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by l-reference. See more details in the limitation section.
+* Note: Both function f and Argument list are passed by value (or pointer value). Passing a reference to the argument list will lead to a copy of the objet. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by reference. See more details in the limitation section.
 
 
 ```C++
@@ -167,5 +167,6 @@ void ThreadPool::Delete(T* t);
   TheadPool::Fetch()->Delete(smart_ptr->release());
   ```
 
-## Limitations
-
+##Limitations
+* TheadPool::RunAndReturn and TheadPool::Run method passes the function object and argument list object by copy. If a function takes reference as input and you rely on the function to modify the referenced data, then this function should not be invoked by either TheadPool::RunAndReturn or TheadPool::Run. To fix that, you need to modify your function to passing by pointer value. This limitation is introduced because the lambda function capture clause is used in combine with a generic template parameter (see file FunctionBinding.h). There are articles that describes how to overcome this issue, but I did not have the time to understand and implement it yet. Here is one article (https://vittorioromeo.info/index/blog/capturing_perfectly_forwarded_objects_in_lambdas.html).
+* TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays does not have a well defined destructor. Improper deletion of an array may leak to memory leak or even crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRef.
