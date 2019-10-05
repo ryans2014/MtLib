@@ -22,24 +22,31 @@ There are two groups of features provided by this library:
 #include <iostream>
 #include <chrono>
 #include "ThreadPool.h"
+
 int SimpleFunction(int milliseconds_to_wait) {
    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds_to_wait));
    return milliseconds_to_wait;
 }
+
 void TestThreadPoolRun() {
    constexpr int N = 50;
    constexpr int NT = 4;
+   
    // thead pool initialization
    MtLib::ThreadPool *tp = MtLib::ThreadPool::Init(NT);
+   
    // create data to store result
    int result[N];
+   
    // start submitting tasks
    auto start_t = std::chrono::high_resolution_clock::now();
    for (int i = 0; i < N; i++)
       tp->RunAndReturn(SimpleFunction, result + i, i);
+      
    // wait for all tasks to finish
    tp->Wait();
    auto end_t = std::chrono::high_resolution_clock::now();
+   
    // process result
    int sum_t = 0;
    for (int res : result)
@@ -53,6 +60,7 @@ void TestThreadPoolRun() {
 ```C++
 #include <iostream>
 #include "ThreadPool.h"
+
 // case 1 - delete const object 
 const MovableType const_obj(1);
 tp->Delete(const_obj); // compiler error, Delete does not take const & type
@@ -76,10 +84,13 @@ std::unique_ptr<MovableType> smt_pt(new MovableType(5));
 tp->Delete(smt_pt.release()); // do not pass a smart poiter to Delete method 
 
 // do not do any of the following
+
 int arr[3]{ 1, 2, 3 };
 tp->Delete(arr); // undefined behavior
+
 MovableType new_obj(5);
 tp->Delete(&new_obj); // error, new_obj will be deleted twice
+
 NonMovableType non_obj(6);
 tp->Delete(non_obj); // compiler error, object should be movable
 ```
