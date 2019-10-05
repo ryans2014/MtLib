@@ -17,22 +17,60 @@ int SimpleFunction(int milliseconds_to_wait) {
    return milliseconds_to_wait;
 }
 void TestThreadPoolRun() {
-   MtLib::ThreadPool *tp = MtLib::ThreadPool::Init(4);
+   constexpr int N = 50;
+   constexpr int NT = 4;
+   // thead pool initialization
+   MtLib::ThreadPool *tp = MtLib::ThreadPool::Init(NT);
+   // create data to store result
    int result[N];
-   auto start_t4 = std::chrono::high_resolution_clock::now();
+   // start submitting tasks
+   auto start_t = std::chrono::high_resolution_clock::now();
    for (int i = 0; i < N; i++)
       tp->RunAndReturn(SimpleFunction, result + i, i);
+   // wait for all tasks to finish
    tp->Wait();
-   auto end_t4 = std::chrono::high_resolution_clock::now();
-   int sum_t4 = 0;
+   auto end_t = std::chrono::high_resolution_clock::now();
+   // process result
+   int sum_t = 0;
    for (int res : result)
-      sum_t4 += res;
-   printf("Thread x 4: sum time = %d, real time = %f \n", sum_t4,
-      std::chrono::duration<double, std::milli>(end_t4 - start_t4).count());
+      sum_t += res;
+   printf("Thread x %d: sum time = %d, real time = %f \n", NT, sum_t4,
+      std::chrono::duration<double, std::milli>(end_t - start_t).count());
 }
 ```
 
 * Delete a object via slave threads
+```C++
+// case 1 - delete const object 
+const MovableType const_obj(1);
+tp->Delete(const_obj); // compiler error, Delete does not take const & type
+tp->Delete(const_cast<MovableType&>(const_obj)); // corret
+
+// case 2 - delete regular object
+MovableType regular_obj(2);
+tp->Delete(regular_obj); // corret, regular_obj will be moved out
+
+// test 3 - delete r-value
+tp->Delete(MovableType(3)); // corret, but useless, obj will be moved out
+
+// test 4 - delete dynamically created object
+const MovableType * const p1 = new MovableType(4);
+tp->Delete(p1); // p1 pointer will become a dangling pointer if you dont reset it to null
+                // do not call delete p1 again.
+ 
+// test 5 - delete an object owned by a unique_ptr
+// do not use Delete function on shared_ptr and weak_ptr, it does not make sense
+std::unique_ptr<MovableType> smt_pt(new MovableType(5));
+tp->Delete(smt_pt.release()); // do not pass a smart poiter to Delete method 
+
+// do not do any of the following
+int arr[3]{ 1, 2, 3 };
+tp->Delete(arr); // undefined behavior
+MovableType new_obj(5);
+tp->Delete(&new_obj); // error, new_obj will be deleted twice
+NonMovableType non_obj(6);
+tp->Delete(non_obj); // compiler error, object should be movable
+```
 
 ## How does it work
 There is a thread-safe task queue maintained by the ThreadPool instance. When Run/RunAndReturn/RunRef method are called (either from master thread or from slave threads), the task will be wrapped to a lambda function can pushed to the task queue. Then, an idle slave thread will be notify to start processing the task (via conditional variable).
