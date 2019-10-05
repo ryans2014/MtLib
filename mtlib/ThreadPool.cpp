@@ -1,20 +1,21 @@
-#include "ThreadPool.h"
 #include <thread>
 #include <functional>
+#include <type_traits>
+#include "ThreadPool.h"
 
 namespace MtLib {
 
-   ThreadPool *ThreadPool::single_instance = nullptr;
+   ThreadPool *ThreadPool::single_instance_ = nullptr;
 
-   void ThreadPool::init(int max_num_threads) {
-      if (ThreadPool::single_instance == nullptr) 
-         ThreadPool::single_instance = new ThreadPool(max_num_threads);
+   void ThreadPool::Init(int max_num_threads) {
+      if (ThreadPool::single_instance_ == nullptr) 
+         ThreadPool::single_instance_ = new ThreadPool(max_num_threads);
    }
 
-   ThreadPool *ThreadPool::fetch() {
-      if (ThreadPool::single_instance == nullptr)
-         ThreadPool::single_instance = new ThreadPool();
-      return ThreadPool::single_instance;
+   ThreadPool *ThreadPool::Fetch() {
+      if (ThreadPool::single_instance_ == nullptr)
+         ThreadPool::single_instance_ = new ThreadPool();
+      return ThreadPool::single_instance_;
    }
 
    ThreadPool::ThreadPool(int max_num_threads) {
@@ -25,76 +26,80 @@ namespace MtLib {
       if (max_num_threads < 1) max_num_threads = 1;
       // create threads, std::thread is movable
       for (int i = 0; i < max_num_threads; i++) {
-         auto thread_loop = std::bind(&ThreadPool::thread_running_loop, this);
-         thread_pool.push_back(std::thread(thread_loop));
+         auto thread_loop = std::bind(&ThreadPool::ThreadRunningLoop, this);
+         thread_pool_.push_back(std::thread(thread_loop));
       }
    }
 
    ThreadPool::~ThreadPool() {
-      // notify all running thread_running_loop to return 
-      exit_flag = true;
-      tp_cv.notify_all();
+      // notify all running ThreadRunningLoop to return 
+      exit_flag_ = true;
+      new_task_notifier_.notify_all();
       // wait for all threads to join
-      for (auto &t : thread_pool)
+      for (auto &t : thread_pool_)
          t.join();
    }
 
-   /*void ThreadPool::run(Task &&tsk) {
-      // insert job to the queue within the lock scope
-      {
-         std::lock_guard<std::mutex> lck(tp_mutex);
-         task_queue.push(std::move(tsk));
-      }
-      // notify one waiting thread outside the lock scope
-      tp_cv.notify_one();
-   }
-	
-	template<class F, class... Args>
-	auto ThreadPool::run(F&& f, Args&&... args)
-		-> std::future<typename std::result_of<F(Args...)>::type>
-	{
-		using return_type = typename std::result_of<F(Args...)>::type;
-
-		auto task = std::make_shared< std::packaged_task<return_type()> >(
-			std::bind(std::forward<F>(f), std::forward<Args>(args)...)
-			);
-
-		std::future<return_type> res = task->get_future();
-		{
-			std::unique_lock<std::mutex> lock(queue_mutex);
-
-			// don't allow enqueueing after stopping the pool
-			if (stop)
-				throw std::runtime_error("enqueue on stopped ThreadPool");
-
-			tasks.emplace([task]() { (*task)(); });
-		}
-		condition.notify_one();
-		return res;
-	}
-	*/
-
-
-   void ThreadPool::thread_running_loop() {
-     /* Task task;
+   void ThreadPool::ThreadRunningLoop() {
       while (true) {
          // get the next job in queue
+         std::function<void()> task;
          {
             // lock the mutex that protects the queue
-            std::unique_lock<std::mutex> lck(tp_mutex);
-            // if empty job queue, release the lock and wait for signal
-            // then, other thread may also come in and wait here for signal
-            while (task_queue.empty())
-               tp_cv.wait(lck);
-            // to exit, set exit_flag and notify_all
-            if (exit_flag) return;
+            std::unique_lock<std::mutex> lck(task_queue_mutex_);
+            // if empty job queue, release the lock and wait for new_task signal
+            // other thread may also come in and wait here for signal
+            while (task_queue_.empty())
+               new_task_notifier_.wait(lck);
+            // to exit, set exit_flag_ and notify_all
+            if (exit_flag_) return;
             // get the job
-            task = std::move(task_queue.front());
-            task_queue.pop();
+            task = std::move(task_queue_.front());
+            task_queue_.pop();
          }
          // run the job outside the lock scope
-         task.run();
-      }*/
+         task();
+         // decrement num_pending_tasks_
+         {
+            // lock the mutext that protect num_pending_tasks_
+            std::unique_lock<std::mutex> lck(pending_count_mutex_);
+            // decrement the counter
+            --num_pending_tasks_;
+            // if zero pending tasks, notify the master thread in case it is waiting for finish
+            if (num_pending_tasks_ == 0)
+               completion_notifier_.notify_all();
+         }
+      }
+   }
+
+   void ThreadPool::Wait() {
+      while (true) {
+         {
+            // lock the mutext that protect num_pending_tasks_
+            std::unique_lock<std::mutex> lck(pending_count_mutex_);
+            // if zero pending tasks, meaning all tasks are finished
+            // this also includes the tasks submitted by slave threads
+            if (num_pending_tasks_ == 0)
+               return;
+            // if there is still running jobs, release the lock and wait for notification
+            completion_notifier_.wait(lck);
+         }
+      }
+   }
+   
+   void ThreadPool::RunRref(std::function<void()>&& f) {
+      // insert job to the queue within the lock scope
+      {
+         std::lock_guard<std::mutex> lck(task_queue_mutex_);
+         task_queue_.push(std::move(f));
+      }
+      // increment num_pending_tasks_
+      {
+         std::unique_lock<std::mutex> lck(pending_count_mutex_);
+         ++num_pending_tasks_;
+      }
+      // notify one waiting thread outside the lock scope
+      new_task_notifier_.notify_one();
    }
 }
 
