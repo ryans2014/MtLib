@@ -1,7 +1,17 @@
 # MtLib: a C++ Thread Pool Library
-MtLib is a C++ library that aims to offer thread reuse as well as convenient API for using std::thread. The library is based on C++14 features. 
+MtLib is a C++ library that aims to offer thread reuse as well as a convenient API multithreading programming. The key feature of this library includes:
+* Thread reusing. Reusing of thread avoids thread creation/deletion time. It can reduce the multithreading overhead. This is especially helpful if you are trying to multithread a short/fast function where the thread creation time can be comparable to the function execution time.
+* Convenient thread API. The typical way of using std::thread include create thread and bind it with function, create future/promise pair and pass to the function, store the thread object for joining at a later time, check the function return from the future object. Now, with MtLib API, you just call the Thread::RunAndReturn method, give the function, the argument list, and where to write the return. When you are ready to see the result, just call Thread::Wait method to wait to wait for the completion of all sutmitted tasks. 
+* Garbage collection via pooled thread. Sometimes, calling the destructor on the master thread is just a wait of time. No further operation depend on the outcome of the destructor. Why not letting the slave threads to do that? This MtLib provides a solution. By calling TheadPool::Delete method, you can pass ownership of a object (move semantics) to a lambda function that takes care of the object destruction. The lambda function is then added to the task queue waiting to be processed. 
+
+## Requirement
+This library depend on C++14 standard features. No external libraries are used.
 
 ## Usage
+
+There are two groups of features provided by 
+
+## How does it work
 
 ## API Reference
 ```CPP
@@ -28,13 +38,13 @@ void ThreadPool::Run(F&& f, Args&&... args);
 ```
 * Run a client side function by the pooled thread. This function is non-blocking and does not wait for the completion of the task. 
 
-  * "f" is the client side function/member function.
+* "f" is the client side function/member function.
   
-  * "args" is argument list. If f is a non-static member function, the first argument should be the class instance pointer.
+* "args" is argument list. If f is a non-static member function, the first argument should be the class instance pointer.
   
-  * Function return and exception are neglected.
+* Function return and exception are neglected.
 
-  * Note: Both function f and Argument list are passed either by value (or pointer value) or by r-reference. Passing a l-value/l-reference to the argument list will lead to a copy of the objet. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by l-reference. See more details in the limitation section.
+* Note: Both function f and Argument list are passed either by value (or pointer value) or by r-reference. Passing a l-value/l-reference to the argument list will lead to a copy of the objet. Therefore, changes made to the object is no longer visible to the caller. The rule of thumb is: always use a pointer argument if you intend to pass by l-reference. See more details in the limitation section.
 
 
 ```C++
@@ -43,7 +53,7 @@ void ThreadPool::RunAndReturn(F&& f, R&& r, Args&&... args);
 ```
 * This function is mostly the same as the ThreadPool::Run function. The only difference is that this function write the returned value to the designated location.
 
-  * "r" should be a pointer where returned value will be written to.
+* "r" should be a pointer where returned value will be written to.
   
   
 ```C++
@@ -67,9 +77,9 @@ void ThreadPool::Delete(T&& t) {
 ```
 * Destroy a data structure by pooled thread. This template function takes a non-const reference to the object that needs to be deleted. Both R-reference and L-reference are OK, but the object need to be movable. Under the hood, the object will be moved to a lambda function object and the function object destructor will be added to the task queue, waiting to be processed.
 
-  * This function can save master thread time by delegating the destructor task to slave threads. This is only the case is move constructor/assignment is properly defined. 
+* This function can save master thread time by delegating the destructor task to slave threads. This is only the case is move constructor/assignment is properly defined. 
 
-  * Do not pass a smart pointer object to this function. Use the next function instead.
+* Do not pass a smart pointer object to this function. Use the next function instead.
 
 
 ```C++
@@ -88,4 +98,3 @@ void ThreadPool::Delete(T* t);
 
 ## Limitations
 
-## Technical Details
