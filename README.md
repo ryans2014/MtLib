@@ -10,7 +10,28 @@ This library depend on C++14 standard features. No external libraries are used.
 
 ## Usage
 There are two groups of features provided by this library:
-* Run a function via slave threads 
+* Run a function from by the thead pool
+```C++
+int SimpleFunction(int milliseconds_to_wait) {
+   std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds_to_wait));
+   return milliseconds_to_wait;
+}
+void TestThreadPoolRun() {
+   MtLib::ThreadPool *tp = MtLib::ThreadPool::Init(4);
+   int result[N];
+   auto start_t4 = std::chrono::high_resolution_clock::now();
+   for (int i = 0; i < N; i++)
+      tp->RunAndReturn(SimpleFunction, result + i, i);
+   tp->Wait();
+   auto end_t4 = std::chrono::high_resolution_clock::now();
+   int sum_t4 = 0;
+   for (int res : result)
+      sum_t4 += res;
+   printf("Thread x 4: sum time = %d, real time = %f \n", sum_t4,
+      std::chrono::duration<double, std::milli>(end_t4 - start_t4).count());
+}
+```
+
 * Delete a object via slave threads
 
 ## How does it work
