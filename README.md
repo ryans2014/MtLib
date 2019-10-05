@@ -167,6 +167,7 @@ void ThreadPool::Delete(T* t);
   TheadPool::Fetch()->Delete(smart_ptr->release());
   ```
 
-##Limitations
+## Limitations
+
 * TheadPool::RunAndReturn and TheadPool::Run method passes the function object and argument list object by copy. If a function takes reference as input and you rely on the function to modify the referenced data, then this function should not be invoked by either TheadPool::RunAndReturn or TheadPool::Run. To fix that, you need to modify your function to passing by pointer value. This limitation is introduced because the lambda function capture clause is used in combine with a generic template parameter (see file FunctionBinding.h). There are articles that describes how to overcome this issue, but I did not have the time to understand and implement it yet. Here is one article (https://vittorioromeo.info/index/blog/capturing_perfectly_forwarded_objects_in_lambdas.html).
 * TheadPool::Delete method does not work on primitive arrays. Deleting arrays can be tricky because arrays does not have a well defined destructor. Improper deletion of an array may leak to memory leak or even crash. If you want to delete an array via thread pool, write a lambda function and invoke it by TheadPool::RunRef.
