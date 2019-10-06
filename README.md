@@ -3,12 +3,12 @@ MtLib is a C++ library that aims to offer thread reuse as well as a convenient A
 * **Thread Reusing:** Reusing of thread avoids thread creation/deletion time. It can reduce the multithreading overhead. This is especially helpful if you are trying to multithread a short/fast function where the thread creation time can be comparable to the function execution time.
 * **Convenient Thread API:** The typical way of using std::thread include create thread and bind it with function, create future/promise pair and pass to the function, store the thread object for joining at a later time, check the function return from the future object. Now, with MtLib API, you just call the Thread::RunAndReturn method, give the function, the argument list, and where to write the return. When you are ready to see the result, just call Thread::Wait method to wait for the completion of all submitted tasks. 
 ```C++
-ThreadPool::Fetch->RunAndReturn(function_to_run, return_pointer, function_argument, ...);
-ThreadPool::Fetch->Wait();
+ThreadPool::Fetch()->RunAndReturn(function_to_run, return_pointer, function_argument, ...);
+ThreadPool::Fetch()->Wait();
 ```
 * **Garbage Collection by Slave Thread:** Sometimes, calling the destructor on the master thread is just a wait of time. No further operation depends on the outcome of the destructor. Why not letting the slave threads to do that? This MtLib provides a solution. By calling TheadPool::Delete method, you can pass ownership of an object (move semantics) to a lambda function that takes care of the object destruction. The lambda function is then added to the task queue waiting to be processed. 
 ```C++
-ThreadPool::Fetch->Delete(object_to_be_deleted);
+ThreadPool::Fetch()->Delete(object_to_be_deleted);
 ```
 
 ## Requirement
@@ -60,6 +60,7 @@ void TestThreadPoolRun() {
 ```C++
 #include <iostream>
 #include "ThreadPool.h"
+MtLib::ThreadPool *tp = MtLib::ThreadPool::Fetch();
 
 // case 1 - delete const object 
 const MovableType const_obj(1);
