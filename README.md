@@ -17,7 +17,7 @@ This library depends on C++14 standard features. No external libraries are used.
 
 ## Usage
 There are two groups of features provided by this library:
-* Run a function from by the thead pool
+* Run a function with the thead pool
 ```C++
 #include <iostream>
 #include <chrono>
@@ -56,7 +56,7 @@ void TestThreadPoolRun() {
 }
 ```
 
-* Delete a object via slave threads
+* Delete an object via slave threads
 ```C++
 #include <iostream>
 #include "ThreadPool.h"
